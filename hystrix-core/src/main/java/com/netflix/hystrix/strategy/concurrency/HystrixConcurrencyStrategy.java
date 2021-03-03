@@ -98,6 +98,8 @@ public abstract class HystrixConcurrencyStrategy {
         final int dynamicCoreSize = threadPoolProperties.coreSize().get();
         final int keepAliveTime = threadPoolProperties.keepAliveTimeMinutes().get();
         final int maxQueueSize = threadPoolProperties.maxQueueSize().get();
+        // 创建队列 maxQueueSize = -1，SynchronousQueue<Runnable>() 是没有所谓的排队的效果的
+        // 一个请求过来了，就会直接创建一个新的线程，来执行这个请求，如果一旦线程池满了，没有新的线程可以了，那么此时就会尝试去创建更多的线程
         final BlockingQueue<Runnable> workQueue = getBlockingQueue(maxQueueSize);
 
         if (allowMaximumSizeToDivergeFromCoreSize) {

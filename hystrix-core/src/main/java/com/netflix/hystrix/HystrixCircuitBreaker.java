@@ -156,6 +156,7 @@ public interface HystrixCircuitBreaker {
             activeSubscription.set(s);
         }
 
+        // 这行代码直接就是让熔断器监听了各种异常的统计信息，监听了拒绝、超时、失败的次数，如果说各种次数达到一定的范围内，此时就会触发熔断
         private Subscription subscribeToStream() {
             /*
              * This stream will recalculate the OPEN/CLOSED status on every onNext from the health stream

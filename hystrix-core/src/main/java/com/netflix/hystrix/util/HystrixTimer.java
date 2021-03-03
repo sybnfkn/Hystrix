@@ -102,6 +102,7 @@ public class HystrixTimer {
                 }
             }
         };
+        // 用之前创建好的线程池，来调度刚才创建的runnable线程，定时调度执行的
 
         ScheduledFuture<?> f = executor.get().getThreadPool().scheduleAtFixedRate(r, listener.getIntervalTimeInMilliseconds(), listener.getIntervalTimeInMilliseconds(), TimeUnit.MILLISECONDS);
         return new TimerReference(listener, f);
@@ -146,10 +147,12 @@ public class HystrixTimer {
 
         /**
          * We want this only done once when created in compareAndSet so use an initialize method
+         * // 初始化timer
          */
         public void initialize() {
 
             HystrixPropertiesStrategy propertiesStrategy = HystrixPlugins.getInstance().getPropertiesStrategy();
+            // 默认4个
             int coreSize = propertiesStrategy.getTimerThreadPoolProperties().getCorePoolSize().get();
 
             ThreadFactory threadFactory = null;

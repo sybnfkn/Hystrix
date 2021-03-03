@@ -98,6 +98,8 @@ public interface HystrixThreadPool {
          * This is thread-safe and ensures only 1 {@link HystrixThreadPool} per {@link HystrixThreadPoolKey}.
          *
          * @return {@link HystrixThreadPool} instance
+         * 就是在构造HystrixCommand的时候，同步会去初始化对应的服务的线程池，一个服务ServiceA -> threadPool
+         * 从一个map里，根据ServiceA名字去获取一个threadPool，但是获取不到，就会新建一个放到map里去，下次就是直接复用了
          */
         /* package */static HystrixThreadPool getInstance(HystrixThreadPoolKey threadPoolKey, HystrixThreadPoolProperties.Setter propertiesBuilder) {
             // get the key to use instead of using the object itself so that if people forget to implement equals/hashcode things will still work
@@ -163,6 +165,7 @@ public interface HystrixThreadPool {
         private static final Logger logger = LoggerFactory.getLogger(HystrixThreadPoolDefault.class);
 
         private final HystrixThreadPoolProperties properties;
+
         private final BlockingQueue<Runnable> queue;
         private final ThreadPoolExecutor threadPool;
         private final HystrixThreadPoolMetrics metrics;
@@ -170,10 +173,12 @@ public interface HystrixThreadPool {
 
         public HystrixThreadPoolDefault(HystrixThreadPoolKey threadPoolKey, HystrixThreadPoolProperties.Setter propertiesDefaults) {
             this.properties = HystrixPropertiesFactory.getThreadPoolProperties(threadPoolKey, propertiesDefaults);
+            // 创建线程池策略
             HystrixConcurrencyStrategy concurrencyStrategy = HystrixPlugins.getInstance().getConcurrencyStrategy();
             this.queueSize = properties.maxQueueSize().get();
 
             this.metrics = HystrixThreadPoolMetrics.getInstance(threadPoolKey,
+                    // 按照策略创建线程池
                     concurrencyStrategy.getThreadPool(threadPoolKey, properties),
                     properties);
             this.threadPool = this.metrics.getThreadPool();
@@ -200,6 +205,7 @@ public interface HystrixThreadPool {
             });
         }
 
+        // 创建一个HystrixContextScheduler
         @Override
         public Scheduler getScheduler(Func0<Boolean> shouldInterruptThread) {
             touchConfig();

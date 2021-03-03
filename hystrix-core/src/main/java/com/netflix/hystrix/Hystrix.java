@@ -106,6 +106,7 @@ public class Hystrix {
     /**
      * 
      * @return Action0 to perform the same work as `endCurrentThreadExecutingCommand()` but can be done from any thread
+     * 执行的commandKey压入一个栈中
      */
     /* package */static Action0 startCurrentThreadExecutingCommand(HystrixCommandKey key) {
         final ConcurrentStack<HystrixCommandKey> list = currentCommand.get();
