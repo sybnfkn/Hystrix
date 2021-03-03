@@ -174,8 +174,11 @@ public interface HystrixCircuitBreaker {
 
                         }
 
+                        // 订阅了以后，每次如果有新的统计信息，就会来回调这个onNext()方法
+                        // //让熔断器监听了各种异常的统计信息，监听了拒绝、超时、失败的次数，如果说各种次数达到一定的范围内，此时就会触发熔断
                         @Override
                         public void onNext(HealthCounts hc) {
+                            // 最近一个时间窗口内（10s），totalRequests（总请求数量）小于circuitBreakerRequestVolumeThreshold（默认是20），那么什么都不干
                             // check if we are past the statisticalWindowVolumeThreshold
                             if (hc.getTotalRequests() < properties.circuitBreakerRequestVolumeThreshold().get()) {
                                 // we are not past the minimum volume threshold for the stat window,
@@ -184,6 +187,7 @@ public interface HystrixCircuitBreaker {
                                 // if it was half-open, we need to wait for a successful command execution
                                 // if it was open, we need to wait for sleep window to elapse
                             } else {
+                                // 如果说最近一个时间窗口（默认是10s）内的异常的请求次数所占的比例（25次请求，5次，20%），< circuitBreakerErrorThresholdPercentage（异常比例，默认是50%），什么都不干
                                 if (hc.getErrorPercentage() < properties.circuitBreakerErrorThresholdPercentage().get()) {
                                     //we are not past the minimum error threshold for the stat window,
                                     // so no change to circuit status.
@@ -191,7 +195,9 @@ public interface HystrixCircuitBreaker {
                                     // if it was half-open, we need to wait for a successful command execution
                                     // if it was open, we need to wait for sleep window to elapse
                                 } else {
+                                    // 但是反之，如果最近一个时间窗口内（默认是10s）内的异常的请求次数所占的比例（25次请求，20次，80%） > circuitBreakerErrorThresholdPercentage（默认是50%），此时就会打开熔断开关
                                     // our failure rate is too high, we need to set the state to OPEN
+                                    // 直接打开断路器
                                     if (status.compareAndSet(Status.CLOSED, Status.OPEN)) {
                                         circuitOpened.set(System.currentTimeMillis());
                                     }
@@ -254,9 +260,27 @@ public interface HystrixCircuitBreaker {
             }
         }
 
+        /**
+         * circuitOpenTime => 20:00:00
+         * sleepWindowTime => circuitBreakerSleepWindowInMilliseconds => 5000（5s）
+         *
+         * 20:00:01 < 20:00:00 + 5s = 20:00:05
+         * 如果熔断器被打开以后，还没有经过指定的（circuitBreakerSleepWindowInMilliseconds，默认是5s），那么就会直接attemptExecution返回false
+         * @return
+         */
         private boolean isAfterSleepWindow() {
             final long circuitOpenTime = circuitOpened.get();
             final long currentTime = System.currentTimeMillis();
+            /**
+             * circuitBreakerSleepWindowInMilliseconds
+             * 默认是5秒钟，我们可以自己去修改，不修改也没事
+             * 如果上次熔断打开的时间是：20:00:00
+             * 此时当前的时间是20:00:06 > 20:00:00 + circuitBreakerSleepWindowInMilliseconds（5s） = 20:00:05
+             * 当前时间比上一次熔断器打开的时间已经超过了5秒钟了
+             * 熔断器状态会从OPEN -> HALF_OPEN
+             * 如果尝试请求失败了，拒绝、超时、失败，handleFallback => circuitBreaker.markNonSuccess(); => 重新打开熔断器
+             * 如果尝试请求成功了，会回调markEmits或者markOnCompleted => circuitBreaker.markSuccess() => 关闭熔断器
+             */
             final long sleepWindowTime = properties.circuitBreakerSleepWindowInMilliseconds().get();
             return currentTime > circuitOpenTime + sleepWindowTime;
         }
@@ -269,14 +293,17 @@ public interface HystrixCircuitBreaker {
             if (properties.circuitBreakerForceClosed().get()) {
                 return true;
             }
+            // 就是可以执行请求，熔断器没有打开
             if (circuitOpened.get() == -1) {
                 return true;
             } else {
+                // 如果熔断器被打开以后，还没有经过指定的（circuitBreakerSleepWindowInMilliseconds，默认是5s），那么就会直接attemptExecution返回false
                 if (isAfterSleepWindow()) {
                     //only the first request after sleep window should execute
                     //if the executing command succeeds, the status will transition to CLOSED
                     //if the executing command fails, the status will transition to OPEN
                     //if the executing command gets unsubscribed, the status will transition to OPEN
+                    // 进入半打开
                     if (status.compareAndSet(Status.OPEN, Status.HALF_OPEN)) {
                         return true;
                     } else {
