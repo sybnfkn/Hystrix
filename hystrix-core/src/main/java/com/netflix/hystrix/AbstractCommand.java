@@ -256,6 +256,7 @@ import java.util.concurrent.atomic.AtomicReference;
         if (enabled) {
             if (fromConstructor == null) {
                 // get the default implementation of HystrixCircuitBreaker
+                // 初始化熔断器
                 return HystrixCircuitBreaker.Factory.getInstance(commandKey, groupKey, properties, metrics);
             } else {
                 return fromConstructor;
